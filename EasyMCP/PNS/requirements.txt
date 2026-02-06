@@ -1,0 +1,20 @@
+# PNS - Personal Note Taking and Search
+# Dependencies
+
+# MCP Framework (local wheel)
+./mcplearn_mcp-0.1.0-py3-none-any.whl
+
+# YAML parsing for note frontmatter
+pyyaml>=6.0
+
+# Slug generation for note filenames
+python-slugify>=8.0
+
+
+# Environment variable loading from .env files
+python-dotenv>=1.0
+
+
+#fastapi 
+fastapi==0.128.0
+uvicorn==0.40.0

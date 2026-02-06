@@ -1,0 +1,13 @@
+POST http://127.0.0.1:8081/invoke
+  Content-Type: application/json
+
+  {
+    "id": "1",
+    "tool": "notetool",
+    "payload": {
+      "action": "create",
+      "title": "My First Note",
+      "content": "This is the content of my note.",
+      "tags": ["personal", "example"]
+    }
+  }
