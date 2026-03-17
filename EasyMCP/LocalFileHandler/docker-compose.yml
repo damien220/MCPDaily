@@ -1,0 +1,112 @@
+version: "3.9"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LocalFileHandler — docker-compose
+#
+# Usage:
+#   docker compose up -d                 # start with defaults
+#   docker compose --profile full up -d  # include AI + voice
+#   docker compose --profile rpi  up -d  # Vosk-only (Pi-friendly)
+#
+# Access: http://localhost:8080
+# ══════════════════════════════════════════════════════════════════════════════
+
+services:
+  # ── Minimal: core server only ───────────────────────────────────────────────
+  localfilehandler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROFILE: minimal
+    image: localfilehandler:minimal
+    container_name: localfilehandler
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - "${WORKSPACE_DIR:-./workspace}:/app/workspace"
+      # Optional: persist Whisper / Vosk model cache
+      - model-cache:/root/.cache
+    environment:
+      SERVER_HOST: "0.0.0.0"
+      SERVER_PORT: "8080"
+      WORKSPACE_PATH: /app/workspace
+      # AI backend (leave blank to disable)
+      AI_BACKEND: "${AI_BACKEND:-none}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434}"
+      # STT backend (leave blank to disable)
+      STT_BACKEND: "${STT_BACKEND:-none}"
+      STT_MODEL: "${STT_MODEL:-base}"
+      STT_WAKE_WORD: "${STT_WAKE_WORD:-hey filebot}"
+      # Auth (optional)
+      AUTH_USERNAME: "${AUTH_USERNAME:-}"
+      AUTH_PASSWORD: "${AUTH_PASSWORD:-}"
+      # Naming
+      NAMING_CASE_STYLE: "${NAMING_CASE_STYLE:-kebab}"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request,json; r=urllib.request.urlopen('http://localhost:8080/invoke',data=json.dumps({'id':'hc','tool':'listcontentstool','payload':{'path':'.'}}).encode(),timeout=8); assert json.loads(r.read())['status']=='success'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    profiles: ["", "minimal"]   # default profile
+
+  # ── Full: AI (Anthropic) + faster-whisper STT ──────────────────────────────
+  localfilehandler-full:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROFILE: full
+    image: localfilehandler:full
+    container_name: localfilehandler-full
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - "${WORKSPACE_DIR:-./workspace}:/app/workspace"
+      - model-cache:/root/.cache
+    environment:
+      SERVER_HOST: "0.0.0.0"
+      SERVER_PORT: "8080"
+      WORKSPACE_PATH: /app/workspace
+      AI_BACKEND: "${AI_BACKEND:-anthropic}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      STT_BACKEND: "${STT_BACKEND:-faster_whisper}"
+      STT_MODEL: "${STT_MODEL:-base}"
+      STT_WAKE_WORD: "${STT_WAKE_WORD:-hey filebot}"
+      AUTH_USERNAME: "${AUTH_USERNAME:-}"
+      AUTH_PASSWORD: "${AUTH_PASSWORD:-}"
+    profiles: ["full"]
+
+  # ── RPi: vosk STT (40 MB model, no GPU needed) ────────────────────────────
+  localfilehandler-rpi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROFILE: rpi
+    image: localfilehandler:rpi
+    container_name: localfilehandler-rpi
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - "${WORKSPACE_DIR:-./workspace}:/app/workspace"
+      - "${VOSK_MODEL_DIR:-./vosk-model}:/vosk-model:ro"
+    environment:
+      SERVER_HOST: "0.0.0.0"
+      SERVER_PORT: "8080"
+      WORKSPACE_PATH: /app/workspace
+      STT_BACKEND: "vosk"
+      STT_MODEL: "/vosk-model"
+      STT_WAKE_WORD: "${STT_WAKE_WORD:-hey filebot}"
+      AUTH_USERNAME: "${AUTH_USERNAME:-}"
+      AUTH_PASSWORD: "${AUTH_PASSWORD:-}"
+    profiles: ["rpi"]
+
+volumes:
+  model-cache:

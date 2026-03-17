@@ -1,0 +1,46 @@
+# LocalFileHandler Requirements
+
+# Core MCP framework (install from local .whl)
+mcplearn_mcp @ file:mcplearn_mcp-0.1.0-py3-none-any.whl
+
+# Web framework (required by HTTPServer transport)
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+
+# Environment variable management
+python-dotenv>=1.0.0
+
+# Timezone support
+tzdata>=2023.3
+
+# HTTP client (used by Ollama/llama.cpp AI backends and whisper_cpp STT)
+requests>=2.31.0
+
+# AI backends (Phase 4)
+# Online  — Claude API (Anthropic); set ANTHROPIC_API_KEY to enable
+anthropic>=0.40.0
+# Offline — Ollama and llama.cpp use plain HTTP (requests above)
+
+# ── STT backends (Phase 5) — install ONE of the following ──────────────────
+#
+# Recommended: faster-whisper  (4× faster than openai-whisper, same accuracy)
+#   pip install faster-whisper
+#   Models auto-downloaded from HuggingFace on first use.
+#   Set: STT_BACKEND=faster_whisper  STT_MODEL=base  (or small / large-v3-turbo)
+#
+# Option A: openai-whisper  (original, GPU-friendly)
+#   pip install openai-whisper
+#   Set: STT_BACKEND=whisper  STT_MODEL=base
+#
+# Option B: vosk  (lightest, ~40 MB model, great for Raspberry Pi)
+#   pip install vosk
+#   Download a model: https://alphacephei.com/vosk/models
+#   Set: STT_BACKEND=vosk  STT_MODEL=/path/to/vosk-model-small-en-us-0.15
+#
+# Option C: whisper.cpp HTTP server  (external process, OpenAI-compatible)
+#   Build & run: https://github.com/ggerganov/whisper.cpp
+#   Set: STT_BACKEND=whisper_cpp  STT_BASE_URL=http://localhost:8085
+#
+# numpy is needed by openai-whisper; faster-whisper bundles its own
+# numpy>=1.24.0

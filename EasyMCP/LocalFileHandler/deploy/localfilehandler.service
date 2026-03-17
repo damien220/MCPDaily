@@ -1,0 +1,36 @@
+[Unit]
+Description=LocalFileHandler — self-hosted file management server
+Documentation=https://github.com/your-org/LocalFileHandler
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=filebot
+Group=filebot
+WorkingDirectory=/opt/localfilehandler
+
+# Load environment from file (create from .env.example)
+EnvironmentFile=-/etc/localfilehandler/env
+
+# Override critical env vars here; rest come from EnvironmentFile
+Environment=PYTHONUNBUFFERED=1
+Environment=SERVER_HOST=0.0.0.0
+Environment=SERVER_PORT=8080
+Environment=WORKSPACE_PATH=/var/lib/localfilehandler/workspace
+
+ExecStart=/opt/localfilehandler/.venv/bin/python -m LocalFileHandler --mode web
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=localfilehandler
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/localfilehandler
+
+[Install]
+WantedBy=multi-user.target

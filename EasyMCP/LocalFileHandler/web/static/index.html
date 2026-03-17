@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LocalFileHandler</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <!-- ── Header ─────────────────────────────────────────────────── -->
+  <header class="app-header">
+    <div class="header-left">
+      <button class="btn-icon" id="btn-sidebar-toggle" title="Toggle file tree">☰</button>
+      <span class="app-logo">🗂</span>
+      <span class="app-title">LocalFileHandler</span>
+      <span class="server-dot" id="server-dot" title="Server status">●</span>
+    </div>
+
+    <nav class="breadcrumb" id="breadcrumb" aria-label="current path"></nav>
+
+    <div class="header-right">
+      <button class="btn-icon" id="btn-search-toggle" title="Search (Ctrl+K)">🔍</button>
+      <button class="btn-icon" id="btn-history-toggle" title="Toggle history panel">📋</button>
+      <button class="btn-icon" id="btn-config-open" title="Settings">⚙</button>
+      <button class="btn-icon" id="btn-theme" title="Toggle light/dark">🌙</button>
+      <button class="btn-icon btn-refresh" id="btn-refresh" title="Refresh (manual)">
+        ↻ <span id="refresh-countdown">30</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── App layout (3-column) ──────────────────────────────────── -->
+  <div class="app-layout" id="app-layout">
+
+    <!-- Left: tree sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-header">Workspace</div>
+        <div id="tree-view" class="tree-view" role="tree"></div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-header">Categories</div>
+        <div id="category-list" class="category-list"></div>
+      </div>
+    </aside>
+
+    <!-- Center: file browser -->
+    <main class="main-content" id="main-content">
+      <div class="toolbar">
+        <div class="toolbar-actions">
+          <button class="btn btn-primary" id="btn-new-file">＋ File</button>
+          <button class="btn btn-secondary" id="btn-new-dir">＋ Folder</button>
+          <button class="btn btn-ghost" id="btn-organize">⚡ Organize</button>
+          <button class="btn btn-ghost" id="btn-select-mode" title="Toggle multi-select (or Ctrl+click cards)">☑ Select</button>
+          <button class="btn btn-ghost ai-btn" id="btn-ai-open" title="AI command — type in plain English">🤖 Ask AI</button>
+          <button class="btn btn-ghost mic-btn" id="btn-mic"
+                  title="Push-to-talk (hold Space or click and hold): speak a command">🎤</button>
+        </div>
+        <div class="toolbar-sort">
+          <label class="sr-only" for="sort-select">Sort by</label>
+          <select id="sort-select" class="select-sm">
+            <option value="name">Name ↑</option>
+            <option value="name-desc">Name ↓</option>
+            <option value="modified">Modified</option>
+            <option value="size">Size</option>
+            <option value="type">Type</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Bulk actions bar (hidden when nothing selected) -->
+      <div id="bulk-bar" class="bulk-bar" hidden>
+        <span id="bulk-count" class="bulk-count">0 selected</span>
+        <div class="bulk-actions">
+          <button class="btn btn-sm btn-secondary" id="btn-bulk-move">→ Move to…</button>
+          <button class="btn btn-sm btn-danger" id="btn-bulk-delete">🗑 Delete</button>
+          <button class="btn btn-sm btn-ghost" id="btn-bulk-deselect">✕ Clear</button>
+        </div>
+      </div>
+
+      <!-- AI command bar (hidden until 🤖 button clicked) -->
+      <div id="ai-panel" class="ai-panel">
+        <div class="ai-input-row">
+          <span class="ai-icon">🤖</span>
+          <input type="text" id="ai-input" class="ai-input"
+                 placeholder="e.g. Create a meeting notes file for today…"
+                 autocomplete="off" spellcheck="false">
+          <button class="btn btn-primary btn-sm" id="btn-ai-send">Ask</button>
+          <button class="btn-icon" id="btn-ai-close" title="Close AI panel">✕</button>
+        </div>
+        <div id="ai-result" class="ai-result" hidden>
+          <div class="ai-explanation" id="ai-explanation"></div>
+          <div class="ai-resolved-wrap">
+            <span class="ai-resolved-label">Resolved to:</span>
+            <code class="ai-resolved-code" id="ai-resolved-code"></code>
+          </div>
+          <div class="ai-result-actions">
+            <button class="btn btn-primary btn-sm" id="btn-ai-execute">▶ Execute</button>
+            <button class="btn btn-ghost btn-sm" id="btn-ai-discard">Discard</button>
+          </div>
+          <div class="ai-warning" id="ai-warning" hidden>
+            ⚠ This operation requires confirmation.
+          </div>
+        </div>
+        <div id="ai-error" class="ai-error" hidden></div>
+        <div id="ai-loading" class="ai-loading" hidden>
+          <span class="spinner"></span> Thinking…
+        </div>
+      </div>
+
+      <!-- Voice recording status bar -->
+      <div id="voice-bar" class="voice-bar">
+        <span class="voice-pulse"></span>
+        <span id="voice-status">Listening…  release to transcribe</span>
+        <button class="btn-icon" id="btn-voice-cancel" title="Cancel recording">✕</button>
+      </div>
+
+      <div id="file-grid-wrapper" class="file-grid-wrapper"
+           ondragover="event.preventDefault()" ondrop="handleDropOnMain(event)">
+        <div id="file-grid" class="file-grid" role="list"></div>
+        <div id="empty-state" class="empty-state" hidden>
+          <div class="empty-icon">📂</div>
+          <p>This folder is empty</p>
+          <p class="empty-hint">Drop files here or use the buttons above</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right: history panel -->
+    <aside class="history-panel" id="history-panel">
+      <div class="panel-header">
+        <span>History</span>
+        <button class="btn btn-ghost btn-sm" id="btn-undo" title="Undo last operation">↩ Undo</button>
+      </div>
+      <div id="history-list" class="history-list"></div>
+    </aside>
+  </div>
+
+  <!-- ── Search slide-in ─────────────────────────────────────────── -->
+  <div class="search-overlay" id="search-overlay" hidden role="search">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="search-input" placeholder="Search files…" autocomplete="off" spellcheck="false">
+      <select id="search-type-filter" class="select-sm">
+        <option value="">All types</option>
+        <option value="md">Markdown</option>
+        <option value="txt">Text</option>
+        <option value="py">Python</option>
+        <option value="js">JavaScript</option>
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+        <option value="jpg">Image</option>
+        <option value="pdf">PDF</option>
+      </select>
+      <button class="btn-icon" id="btn-search-close">✕</button>
+    </div>
+    <div id="search-results" class="search-results"></div>
+  </div>
+
+  <!-- ── Modals ──────────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="modal-overlay" hidden>
+
+    <!-- Create File -->
+    <dialog class="modal" id="modal-create-file" open>
+      <div class="modal-header">
+        <h2>New File</h2>
+        <button class="modal-close" data-modal="modal-create-file">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="input-file-name">Name</label>
+          <input type="text" id="input-file-name" class="form-input"
+                 placeholder="e.g. meeting notes" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="input-file-type">Type</label>
+          <select id="input-file-type" class="form-select">
+            <option value="md">Markdown (.md)</option>
+            <option value="txt">Text (.txt)</option>
+            <option value="py">Python (.py)</option>
+            <option value="js">JavaScript (.js)</option>
+            <option value="ts">TypeScript (.ts)</option>
+            <option value="html">HTML (.html)</option>
+            <option value="css">CSS (.css)</option>
+            <option value="json">JSON (.json)</option>
+            <option value="yaml">YAML (.yaml)</option>
+            <option value="csv">CSV (.csv)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="input-file-content">Initial content</label>
+          <textarea id="input-file-content" class="form-textarea" rows="4"
+                    placeholder="Optional…"></textarea>
+        </div>
+        <div class="preview-box" id="file-preview-box">
+          <span class="preview-label">Will be saved as</span>
+          <code class="preview-path" id="file-preview-path">—</code>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-modal="modal-create-file" data-action="cancel">Cancel</button>
+        <button class="btn btn-primary" id="btn-create-file-submit">Create</button>
+      </div>
+    </dialog>
+
+    <!-- Create Directory -->
+    <dialog class="modal" id="modal-create-dir" open>
+      <div class="modal-header">
+        <h2>New Folder</h2>
+        <button class="modal-close" data-modal="modal-create-dir">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="input-dir-name">Name</label>
+          <input type="text" id="input-dir-name" class="form-input"
+                 placeholder="e.g. Project Alpha" autocomplete="off">
+        </div>
+        <div class="preview-box" id="dir-preview-box">
+          <span class="preview-label">Will be saved as</span>
+          <code class="preview-path" id="dir-preview-path">—</code>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-modal="modal-create-dir" data-action="cancel">Cancel</button>
+        <button class="btn btn-primary" id="btn-create-dir-submit">Create</button>
+      </div>
+    </dialog>
+
+    <!-- Organize preview -->
+    <dialog class="modal modal-wide" id="modal-organize" open>
+      <div class="modal-header">
+        <h2>⚡ Organize Folder</h2>
+        <button class="modal-close" data-modal="modal-organize">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-description" id="organize-description"></p>
+        <div id="organize-preview-list" class="organize-list"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-modal="modal-organize" data-action="cancel">Cancel</button>
+        <button class="btn btn-primary" id="btn-organize-confirm">Apply Changes</button>
+      </div>
+    </dialog>
+
+    <!-- File Info -->
+    <dialog class="modal" id="modal-info" open>
+      <div class="modal-header">
+        <h2>File Info</h2>
+        <button class="modal-close" data-modal="modal-info">✕</button>
+      </div>
+      <div class="modal-body">
+        <dl id="info-list" class="info-list"></dl>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-modal="modal-info" data-action="cancel">Close</button>
+      </div>
+    </dialog>
+
+    <!-- Config -->
+    <dialog class="modal modal-wide" id="modal-config" open>
+      <div class="modal-header">
+        <h2>⚙ Configuration</h2>
+        <button class="modal-close" data-modal="modal-config">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="config-form" class="config-form"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="btn-config-reset">Reset defaults</button>
+        <button class="btn btn-ghost" data-modal="modal-config" data-action="cancel">Cancel</button>
+        <button class="btn btn-primary" id="btn-config-save">Save</button>
+      </div>
+    </dialog>
+
+    <!-- Delete confirm (single) -->
+    <dialog class="modal modal-sm" id="modal-delete" open>
+      <div class="modal-header">
+        <h2>Confirm Delete</h2>
+        <button class="modal-close" data-modal="modal-delete">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="delete-message" class="delete-message"></p>
+        <p class="delete-hint">The item will be moved to trash and can be restored with Undo.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-modal="modal-delete" data-action="cancel">Cancel</button>
+        <button class="btn btn-danger" id="btn-delete-confirm">Delete</button>
+      </div>
+    </dialog>
+
+    <!-- Bulk delete confirm -->
+    <dialog class="modal modal-sm" id="modal-bulk-delete" open>
+      <div class="modal-header">
+        <h2>Delete Selected</h2>
+        <button class="modal-close" data-modal="modal-bulk-delete">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="bulk-delete-message" class="delete-message"></p>
+        <p class="delete-hint">Items will be moved to trash and can be restored with Undo.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-modal="modal-bulk-delete" data-action="cancel">Cancel</button>
+        <button class="btn btn-danger" id="btn-bulk-delete-confirm">Delete All</button>
+      </div>
+    </dialog>
+
+    <!-- Bulk move -->
+    <dialog class="modal" id="modal-bulk-move" open>
+      <div class="modal-header">
+        <h2>Move Selected Items</h2>
+        <button class="modal-close" data-modal="modal-bulk-move">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-description" id="bulk-move-description"></p>
+        <div class="form-group">
+          <label for="bulk-move-dest">Destination folder</label>
+          <input type="text" id="bulk-move-dest" class="form-input"
+                 placeholder="e.g. documents/ or projects/my-project/"
+                 autocomplete="off" list="bulk-move-suggestions">
+          <datalist id="bulk-move-suggestions"></datalist>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" data-modal="modal-bulk-move" data-action="cancel">Cancel</button>
+        <button class="btn btn-primary" id="btn-bulk-move-confirm">Move</button>
+      </div>
+    </dialog>
+
+  </div><!-- /modal-overlay -->
+
+  <!-- ── Toast notifications ────────────────────────────────────── -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

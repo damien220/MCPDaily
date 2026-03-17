@@ -1,0 +1,39 @@
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# ── Virtual environments ───────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Dev / test artefacts ──────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+tests/
+
+# ── IDE & OS ──────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ── Docs & git ────────────────────────────────────────────────
+docs/
+.git/
+.gitignore
+
+# ── Workspace data (mounted as volume at runtime) ─────────────
+workspace/
+
+# ── Secrets ───────────────────────────────────────────────────
+.env
+*.key
+*.pem
